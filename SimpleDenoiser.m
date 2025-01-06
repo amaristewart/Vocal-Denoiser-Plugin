@@ -4,7 +4,7 @@ classdef SimpleDenoiser < audioPlugin
 
         Bypass = false;
         %MODELSELECT='CNN';
-        TrainingAudio = 'Washing Machine';
+        NoiseProfile = 'Washing Machine';
         Strength = 1;
 
     end
@@ -13,18 +13,18 @@ classdef SimpleDenoiser < audioPlugin
 
         PluginInterface = audioPluginInterface(...
             audioPluginParameter('Bypass', 'DisplayName', 'Bypass', 'Mapping', {'enum', 'Off', 'On'}), ...
-            audioPluginParameter('TrainingAudio', 'DisplayName', 'Training Audio','Mapping', {'enum', 'Washing Machine', 'White Noise'}), ...
+            audioPluginParameter('NoiseProfile', 'DisplayName', 'Noise Profile','Mapping', {'enum', 'Washing Machine', 'White Noise', 'Crowd Noise'}), ...
             audioPluginParameter('Strength', 'DisplayName', 'Strength', 'Mapping', {'lin', 0, 1}, 'Style', 'rotaryKnob'),...
             'InputChannels',1,...
             'OutputChannels',1,...
             'PluginName','SimpleDenoiser')
-        
+
             %audioPluginParameter('MODELSELECT','DisplayName','Model','Mapping',{'enum','CNN','Feed Forward'}),...
 
     end
 
     properties (Constant)
-        
+
         PluginConfig = audioPluginConfig( ...
             'DeepLearningConfig',coder.DeepLearningConfig('none'),...
             'CodeReplacementLibrary', '');
@@ -97,10 +97,12 @@ classdef SimpleDenoiser < audioPlugin
 
             plugin.idx = 1;
 
-            if strcmp(plugin.TrainingAudio, 'Washing Machine')
+            if strcmp(plugin.NoiseProfile, 'Washing Machine')
                 plugin.audio = audioread("WashingMachine-16-8-mono-1000secs.mp3");
-            elseif strcmp(plugin.TrainingAudio, 'White Noise')
+            elseif strcmp(plugin.NoiseProfile, 'White Noise')
                 plugin.audio = audioread("WhiteNoise.wav");
+            elseif strcmp(plugin.NoiseProfile, 'Crowd Noise')
+                plugin.audio = audioread("CrowdNoise.flac");
             end
 
             plugin.src16From8 = dsp.FIRInterpolator(2);
@@ -124,12 +126,12 @@ classdef SimpleDenoiser < audioPlugin
 
         end
 
-        function set.MODELSELECT(plugin,val)
-            plugin.MODELSELECT = val;
-        end
+        % function set.MODELSELECT(plugin,val)
+        %     plugin.MODELSELECT = val;
+        % end
 
-        function set.TrainingAudio(plugin, val)
-            plugin.TrainingAudio = val;
+        function set.NoiseProfile(plugin, val)
+            plugin.NoiseProfile = val;
         end
 
         function reset(plugin)
@@ -147,49 +149,49 @@ classdef SimpleDenoiser < audioPlugin
                 plugin.idx = plugin.idx + length(in);
                 %in = in + noise * 2;
                 in = in + noise * 0.1;
-    
+
                 % if strcmp(plugin.MODELSELECT, 'CNN')
                 %     useCNN = 1;
                 % else
                 %     useCNN=0;
                 % end
-    
+
                 dt = class(in);
                 in = single(in);
-    
+
                 fs = getSampleRate(plugin);
-    
+
                 % Convert signal to 8 kHz
                 x = convertTo8kHz(plugin, in, fs);
 
                 % Write 8 kHz signal to buffer
                 write(plugin.bufferNN,x(:,1:size(in,2)));
-    
+
                 % The denoising neural network operates on audio frames of
                 % length 64.
                 numSamples = double(plugin.bufferNN.NumUnreadSamples);
                 numFrames = floor(numSamples/64);
-    
+
                 z = zeros(64*numFrames,1,'single');
-    
+
                 for index=1:numFrames
                     frame = read(plugin.bufferNN, 64);
                     sftSeg  = plugin.stf(frame);
                     sftSeg = sftSeg(1:129,1);
-    
+
                     % Write most recent STFT vector to buffer
                     write(plugin.segmentBuffer,abs(sftSeg).');
-    
+
                     % Read most recent 8 STFT vectors, with overlap of 7
                     SFFT_Image = read(plugin.segmentBuffer,8,7).';
-    
+
                     % Denoise. Y is the STFT of the denoised frame
                     Y = denoise(reshape(SFFT_Image, [129 8 1]), useCNN).';
-                    
+
                     ogMagnitude = abs(sftSeg);
                     Y = Y(:); % Make sure Y is a column vector
                     ogMagnitude = ogMagnitude(:); % Make sure ogMagnitude is a column vector
-                    
+
                     blendFactor = plugin.Strength;
                     blendedMagnitude = (blendFactor * Y) + ((1 - blendFactor) * ogMagnitude);
 
@@ -198,7 +200,7 @@ classdef SimpleDenoiser < audioPlugin
                     isftSeg = blendedMagnitude.*exp(1j * angle(sftSeg));
                     z((index-1)*64+1:index*64) = plugin.istf(isftSeg);
                 end          
-    
+
                 % Convert from 8 kHz back to the input sample rate
                 y = convertFrom8kHz(plugin, z, fs);
 
@@ -206,19 +208,19 @@ classdef SimpleDenoiser < audioPlugin
                 vadFeatures = vadnetPreprocess(y, fs);
                 probSpeech = predict(plugin.vadNet, vadFeatures);
                 plugin.noiseGate.Threshold = -140 * mean(probSpeech);
-                  
+
                 % Process through noise gate
                 y = plugin.noiseGate(y);
-                     
+
                 % Write to buffer
                 write(plugin.buffer,y(:,1:size(in,2)));
-    
+
                 % Return output (same length as input)
                 frameLength = size(in,1);
                 out = cast(read(plugin.buffer,frameLength),dt);
 
             end
-    
+
         end
     end
 
@@ -335,15 +337,15 @@ function y = denoise(x)
         noisyMean = s.noisyMean;
         noisyStd = s.noisyStd;
     end
-    
+
     x = (x-noisyMean)/noisyStd;
-    
+
     persistent trainedNetCNN trainedNetFF
     if isempty(trainedNetFF)
         trainedNetFF = s.denoiseNetFullyConnected;
         trainedNetCNN = s.denoiseNetFullyConvolutional;
     end
-    
+
     %if useCNN
         y = predict(trainedNetCNN,x)';
     % else
