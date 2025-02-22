@@ -8,7 +8,7 @@ The **Vocal Denoiser Plugin** is an advanced audio processing tool designed to e
 - **Short-Time Fourier Transform (STFT)**: Converts the time-domain signal into a frequency-domain representation for precise processing.
 - **Voice Activity Detection (VAD)**: Identifies and isolates speech from non-speech regions, ensuring that the noise suppression is applied only where necessary.
 - **Adaptive Noise Gate**: Dynamically adjusts threshold levels based on detected speech probability to further refine noise reduction.
-- **Multiple Noise Profiles**: Users can select from predefined noise profiles such as:
+- **Multiple Noise Profiles**: Users can select from predefined noise profiles:
   - Washing Machine
   - White Noise
   - Crowd Noise
