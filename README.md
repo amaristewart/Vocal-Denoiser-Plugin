@@ -1,7 +1,7 @@
 # Vocal Denoiser Plugin
 
 ## Overview
-The **Vocal Denoiser Plugin** is an advanced audio processing tool designed to enhance speech clarity by effectively reducing background noise in real time. This plugin utilizes a convolutional neural network (CNN) to suppress unwanted noise while preserving speech integrity, making it ideal for applications such as podcasting, video conferencing, and live streaming.
+The **Vocal Denoiser Plugin** is an advanced audio processing tool designed to enhance speech clarity by effectively reducing background noise in real time. This plugin utilizes a convolutional neural network (CNN) to suppress unwanted noise while preserving speech integrity.
 
 ## Features
 - **Real-Time Noise Suppression**: Uses a pre-trained deep learning model to analyze and remove noise from speech.
